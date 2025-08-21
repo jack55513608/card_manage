@@ -5,6 +5,11 @@ import (
 	"card_manage/internal/repository"
 	"errors"
 	"fmt"
+	"io"
+	"os"
+	"path/filepath"
+
+	"github.com/google/uuid"
 )
 
 var (
@@ -26,7 +31,7 @@ func NewCardService(cardRepo *repository.CardRepository, storeRepo *repository.S
 }
 
 // CreateCard creates a new card for the store associated with the given userID.
-func (s *CardService) CreateCard(userID int64, name, series, rarity, cardNumber string) (*model.Card, error) {
+func (s *CardService) CreateCard(userID int64, name, series, rarity, cardNumber string, imageContent io.Reader, imageExtension string) (*model.Card, error) {
 	store, err := s.storeRepo.GetStoreByUserID(userID)
 	if err != nil {
 		return nil, fmt.Errorf("error finding store: %w", err)
@@ -35,12 +40,39 @@ func (s *CardService) CreateCard(userID int64, name, series, rarity, cardNumber 
 		return nil, ErrStoreNotFound
 	}
 
+	var imageURL string
+	if imageContent != nil {
+		// Create the uploads directory if it doesn't exist
+		uploadDir := "uploads"
+		if err := os.MkdirAll(uploadDir, 0755); err != nil {
+			return nil, fmt.Errorf("failed to create upload directory: %w", err)
+		}
+
+		// Generate a unique filename
+		fileName := uuid.New().String() + imageExtension
+		filePath := filepath.Join(uploadDir, fileName)
+
+		// Create the file
+		file, err := os.Create(filePath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create image file: %w", err)
+		}
+		defer file.Close()
+
+		// Copy the image content to the file
+		if _, err := io.Copy(file, imageContent); err != nil {
+			return nil, fmt.Errorf("failed to save image content: %w", err)
+		}
+		imageURL = "/" + filePath // Store a URL-like path
+	}
+
 	newCard := &model.Card{
 		StoreID:    store.ID,
 		Name:       name,
 		Series:     series,
 		Rarity:     rarity,
 		CardNumber: cardNumber,
+		ImageURL:   imageURL,
 	}
 
 	cardID, err := s.cardRepo.CreateCard(newCard)

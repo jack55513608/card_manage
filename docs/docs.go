@@ -66,9 +66,9 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Adds a new card to the store associated with the user.",
+                "description": "Adds a new card to the store associated with the user, with an optional image upload.",
                 "consumes": [
-                    "application/json"
+                    "multipart/form-data"
                 ],
                 "produces": [
                     "application/json"
@@ -79,13 +79,35 @@ const docTemplate = `{
                 "summary": "Create a new card",
                 "parameters": [
                     {
-                        "description": "Card Information",
-                        "name": "card",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/api.CreateCardRequest"
-                        }
+                        "type": "string",
+                        "description": "Card Name",
+                        "name": "name",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Card Series",
+                        "name": "series",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Card Rarity",
+                        "name": "rarity",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Card Number",
+                        "name": "card_number",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "file",
+                        "description": "Card Image",
+                        "name": "image",
+                        "in": "formData"
                     }
                 ],
                 "responses": {
@@ -862,26 +884,6 @@ const docTemplate = `{
         }
     },
     "definitions": {
-        "api.CreateCardRequest": {
-            "type": "object",
-            "required": [
-                "name"
-            ],
-            "properties": {
-                "card_number": {
-                    "type": "string"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "rarity": {
-                    "type": "string"
-                },
-                "series": {
-                    "type": "string"
-                }
-            }
-        },
         "api.CreateConsignmentRequest": {
             "type": "object",
             "required": [
@@ -1030,6 +1032,9 @@ const docTemplate = `{
                 },
                 "id": {
                     "type": "integer"
+                },
+                "image_url": {
+                    "type": "string"
                 },
                 "name": {
                     "type": "string"

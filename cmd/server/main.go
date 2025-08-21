@@ -74,6 +74,9 @@ func main() {
 	// Setup server and routes
 	r := gin.Default()
 
+	// Serve static files from the uploads directory
+	r.Static("/uploads", "./uploads")
+
 	// Swagger route
 	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 

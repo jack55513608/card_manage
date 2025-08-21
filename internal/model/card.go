@@ -10,6 +10,7 @@ type Card struct {
 	Series     string    `json:"series,omitempty"`
 	Rarity     string    `json:"rarity,omitempty"`
 	CardNumber string    `json:"card_number,omitempty"`
+	ImageURL   string    `json:"image_url,omitempty"`
 	CreatedAt  time.Time `json:"created_at"`
 	UpdatedAt  time.Time `json:"updated_at"`
 }

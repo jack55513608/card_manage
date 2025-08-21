@@ -16,8 +16,8 @@ func NewCardRepository(db *sql.DB) *CardRepository {
 
 // CreateCard inserts a new card into the database.
 func (r *CardRepository) CreateCard(card *model.Card) (int64, error) {
-	query := `INSERT INTO cards (store_id, name, series, rarity, card_number, created_at, updated_at)
-			  VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`
+	query := `INSERT INTO cards (store_id, name, series, rarity, card_number, image_url, created_at, updated_at)
+			  VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`
 	
 	card.CreatedAt = time.Now()
 	card.UpdatedAt = time.Now()
@@ -30,6 +30,7 @@ func (r *CardRepository) CreateCard(card *model.Card) (int64, error) {
 		card.Series,
 		card.Rarity,
 		card.CardNumber,
+		card.ImageURL,
 		card.CreatedAt,
 		card.UpdatedAt,
 	).Scan(&cardID)
@@ -42,7 +43,7 @@ func (r *CardRepository) CreateCard(card *model.Card) (int64, error) {
 
 // GetCardByID retrieves a single card by its ID.
 func (r *CardRepository) GetCardByID(cardID int64) (*model.Card, error) {
-	query := `SELECT id, store_id, name, series, rarity, card_number, created_at, updated_at 
+	query := `SELECT id, store_id, name, series, rarity, card_number, image_url, created_at, updated_at 
 			  FROM cards WHERE id = $1`
 	
 	card := &model.Card{}
@@ -53,6 +54,7 @@ func (r *CardRepository) GetCardByID(cardID int64) (*model.Card, error) {
 		&card.Series,
 		&card.Rarity,
 		&card.CardNumber,
+		&card.ImageURL,
 		&card.CreatedAt,
 		&card.UpdatedAt,
 	)
@@ -95,7 +97,7 @@ func (r *CardRepository) DeleteCard(cardID int64) error {
 
 // ListCardsByStore retrieves a list of cards for a specific store.
 func (r *CardRepository) ListCardsByStore(storeID int64) ([]model.Card, error) {
-	query := `SELECT id, store_id, name, series, rarity, card_number, created_at, updated_at
+	query := `SELECT id, store_id, name, series, rarity, card_number, image_url, created_at, updated_at
 			  FROM cards WHERE store_id = $1 ORDER BY created_at DESC`
 
 	rows, err := r.db.Query(query, storeID)
@@ -114,6 +116,7 @@ func (r *CardRepository) ListCardsByStore(storeID int64) ([]model.Card, error) {
 			&card.Series,
 			&card.Rarity,
 			&card.CardNumber,
+			&card.ImageURL,
 			&card.CreatedAt,
 			&card.UpdatedAt,
 		); err != nil {

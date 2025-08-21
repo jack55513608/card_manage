@@ -2,7 +2,9 @@ package api
 
 import (
 	"card_manage/internal/service"
+	"io"
 	"net/http"
+	"path/filepath"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
@@ -16,35 +18,49 @@ func NewCardHandler(cardService *service.CardService) *CardHandler {
 	return &CardHandler{cardService: cardService}
 }
 
-type CreateCardRequest struct {
-	Name       string `json:"name" binding:"required"`
-	Series     string `json:"series"`
-	Rarity     string `json:"rarity"`
-	CardNumber string `json:"card_number"`
-}
-
 // @Summary Create a new card
-// @Description Adds a new card to the store associated with the user.
+// @Description Adds a new card to the store associated with the user, with an optional image upload.
 // @Tags cards
-// @Accept  json
+// @Accept  mpfd
 // @Produce  json
 // @Security BearerAuth
-// @Param   card body CreateCardRequest true "Card Information"
+// @Param   name formData string true "Card Name"
+// @Param   series formData string false "Card Series"
+// @Param   rarity formData string false "Card Rarity"
+// @Param   card_number formData string false "Card Number"
+// @Param   image formData file false "Card Image"
 // @Success 201 {object} model.Card
 // @Failure 400 {object} map[string]string "{"error": "bad_request_error"}"
 // @Failure 403 {object} map[string]string "{"error": "user does not have a store"}"
 // @Failure 500 {object} map[string]string "{"error": "failed to create card"}"
 // @Router /api/cards [post]
 func (h *CardHandler) CreateCard(c *gin.Context) {
-	var req CreateCardRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	name := c.PostForm("name")
+	series := c.PostForm("series")
+	rarity := c.PostForm("rarity")
+	cardNumber := c.PostForm("card_number")
+
+	if name == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "name is a required field"})
 		return
 	}
 
 	claims := c.MustGet(AuthorizationPayloadKey).(*service.CustomClaims)
 
-	card, err := h.cardService.CreateCard(claims.UserID, req.Name, req.Series, req.Rarity, req.CardNumber)
+	var imageContent io.Reader
+	var imageExtension string
+
+	file, header, err := c.Request.FormFile("image")
+	if err == nil {
+		defer file.Close()
+		imageContent = file
+		imageExtension = filepath.Ext(header.Filename)
+	} else if err != http.ErrMissingFile {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "failed to process image file"})
+		return
+	}
+
+	card, err := h.cardService.CreateCard(claims.UserID, name, series, rarity, cardNumber, imageContent, imageExtension)
 	if err != nil {
 		if err == service.ErrStoreNotFound {
 			c.JSON(http.StatusForbidden, gin.H{"error": "user does not have a store"})

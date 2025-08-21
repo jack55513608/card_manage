@@ -1,17 +1,4 @@
 definitions:
-  api.CreateCardRequest:
-    properties:
-      card_number:
-        type: string
-      name:
-        type: string
-      rarity:
-        type: string
-      series:
-        type: string
-    required:
-    - name
-    type: object
   api.CreateConsignmentRequest:
     properties:
       card_id:
@@ -110,6 +97,8 @@ definitions:
         type: string
       id:
         type: integer
+      image_url:
+        type: string
       name:
         type: string
       rarity:
@@ -255,15 +244,31 @@ paths:
       - cards
     post:
       consumes:
-      - application/json
-      description: Adds a new card to the store associated with the user.
+      - multipart/form-data
+      description: Adds a new card to the store associated with the user, with an
+        optional image upload.
       parameters:
-      - description: Card Information
-        in: body
-        name: card
+      - description: Card Name
+        in: formData
+        name: name
         required: true
-        schema:
-          $ref: '#/definitions/api.CreateCardRequest'
+        type: string
+      - description: Card Series
+        in: formData
+        name: series
+        type: string
+      - description: Card Rarity
+        in: formData
+        name: rarity
+        type: string
+      - description: Card Number
+        in: formData
+        name: card_number
+        type: string
+      - description: Card Image
+        in: formData
+        name: image
+        type: file
       produces:
       - application/json
       responses:
