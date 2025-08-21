@@ -61,12 +61,13 @@ func (r *SettlementRepository) UpdateSettlementStatus(id int64, status model.Set
 // GetUnsettledTransactions calculates the total amount from sold but uncleared consignments for a player at a specific store.
 func (r *SettlementRepository) GetUnsettledTransactions(playerID, storeID int64) ([]model.Transaction, error) {
 	query := `
-		SELECT t.id, t.consignment_id, t.store_id, t.price, t.payment_method, t.commission_rate, t.created_at
+		SELECT t.id, t.consignment_item_id, t.store_id, t.price, t.payment_method, t.commission_rate, t.created_at
 		FROM transactions t
-		JOIN consignments c ON t.consignment_id = c.id
+		JOIN consignment_items ci ON t.consignment_item_id = ci.id
+		JOIN consignments c ON ci.consignment_id = c.id
 		WHERE c.player_id = $1
 		  AND c.store_id = $2
-		  AND c.status = 'SOLD'`
+		  AND ci.status = 'SOLD'`
 
 	rows, err := r.db.Query(query, playerID, storeID)
 	if err != nil {
@@ -77,7 +78,7 @@ func (r *SettlementRepository) GetUnsettledTransactions(playerID, storeID int64)
 	var transactions []model.Transaction
 	for rows.Next() {
 		var tx model.Transaction
-		if err := rows.Scan(&tx.ID, &tx.ConsignmentID, &tx.StoreID, &tx.Price, &tx.PaymentMethod, &tx.CommissionRate, &tx.CreatedAt); err != nil {
+		if err := rows.Scan(&tx.ID, &tx.ConsignmentItemID, &tx.StoreID, &tx.Price, &tx.PaymentMethod, &tx.CommissionRate, &tx.CreatedAt); err != nil {
 			return nil, err
 		}
 		transactions = append(transactions, tx)

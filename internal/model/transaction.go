@@ -13,7 +13,7 @@ const (
 // Transaction corresponds to the "transactions" table in the database.
 type Transaction struct {
 	ID             int64         `json:"id"`
-	ConsignmentID  int64         `json:"consignment_id"`
+	ConsignmentItemID  int64         `json:"consignment_item_id"`
 	StoreID        int64         `json:"store_id"`
 	Price          float64       `json:"price"`
 	PaymentMethod  PaymentMethod `json:"payment_method"`

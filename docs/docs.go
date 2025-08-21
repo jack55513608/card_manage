@@ -369,48 +369,13 @@ const docTemplate = `{
             }
         },
         "/api/consignments": {
-            "get": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Lists consignments for the current user (player or store).",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "consignments"
-                ],
-                "summary": "List consignments",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/model.Consignment"
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "{\"error\": \"failed to list consignments\"}",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    }
-                }
-            },
             "post": {
                 "security": [
                     {
                         "BearerAuth": []
                     }
                 ],
-                "description": "Player creates a consignment request for a card to a store.",
+                "description": "Player creates a consignment request for one or more cards to a store.",
                 "consumes": [
                     "application/json"
                 ],
@@ -460,14 +425,14 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/consignments/{id}": {
+        "/api/consignments/items/{itemId}": {
             "put": {
                 "security": [
                     {
                         "BearerAuth": []
                     }
                 ],
-                "description": "Store updates the status of a consignment (e.g., to LISTED, SOLD).",
+                "description": "Store approves or rejects a consignment item.",
                 "consumes": [
                     "application/json"
                 ],
@@ -477,12 +442,12 @@ const docTemplate = `{
                 "tags": [
                     "consignments"
                 ],
-                "summary": "Update a consignment's status",
+                "summary": "Update a consignment item's status",
                 "parameters": [
                     {
                         "type": "integer",
-                        "description": "Consignment ID",
-                        "name": "id",
+                        "description": "Consignment Item ID",
+                        "name": "itemId",
                         "in": "path",
                         "required": true
                     },
@@ -492,7 +457,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/api.UpdateConsignmentStatusRequest"
+                            "$ref": "#/definitions/api.UpdateConsignmentItemStatusRequest"
                         }
                     }
                 ],
@@ -500,11 +465,11 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/model.Consignment"
+                            "$ref": "#/definitions/model.ConsignmentItem"
                         }
                     },
                     "400": {
-                        "description": "{\"error\": \"invalid consignment ID or bad request\"}",
+                        "description": "{\"error\": \"invalid item ID or bad request\"}",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -522,7 +487,7 @@ const docTemplate = `{
                         }
                     },
                     "404": {
-                        "description": "{\"error\": \"consignment not found\"}",
+                        "description": "{\"error\": \"item not found\"}",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -531,7 +496,7 @@ const docTemplate = `{
                         }
                     },
                     "500": {
-                        "description": "{\"error\": \"failed to update consignment status\"}",
+                        "description": "{\"error\": \"failed to update item status\"}",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -615,7 +580,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Store creates a transaction for a sold consignment.",
+                "description": "Store creates a transaction for a sold consignment item.",
                 "consumes": [
                     "application/json"
                 ],
@@ -653,8 +618,26 @@ const docTemplate = `{
                             }
                         }
                     },
+                    "403": {
+                        "description": "{\"error\": \"permission denied\"}",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "{\"error\": \"item not found\"}",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
                     "409": {
-                        "description": "{\"error\": \"conflict (e.g., consignment not found, already sold, or forbidden)\"}",
+                        "description": "{\"error\": \"conflict (e.g., item not approved or already sold)\"}",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -887,16 +870,15 @@ const docTemplate = `{
         "api.CreateConsignmentRequest": {
             "type": "object",
             "required": [
-                "card_id",
-                "quantity",
+                "card_ids",
                 "store_id"
             ],
             "properties": {
-                "card_id": {
-                    "type": "integer"
-                },
-                "quantity": {
-                    "type": "integer"
+                "card_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
                 },
                 "store_id": {
                     "type": "integer"
@@ -917,12 +899,12 @@ const docTemplate = `{
         "api.CreateTransactionRequest": {
             "type": "object",
             "required": [
-                "consignment_id",
+                "consignment_item_id",
                 "payment_method",
                 "price"
             ],
             "properties": {
-                "consignment_id": {
+                "consignment_item_id": {
                     "type": "integer"
                 },
                 "payment_method": {
@@ -1001,21 +983,23 @@ const docTemplate = `{
                 }
             }
         },
-        "api.UpdateConsignmentStatusRequest": {
+        "api.UpdateConsignmentItemStatusRequest": {
             "type": "object",
             "required": [
                 "status"
             ],
             "properties": {
+                "reason": {
+                    "type": "string"
+                },
                 "status": {
                     "enum": [
-                        "LISTED",
-                        "SOLD",
-                        "CLEARED"
+                        "APPROVED",
+                        "REJECTED"
                     ],
                     "allOf": [
                         {
-                            "$ref": "#/definitions/model.ConsignmentStatus"
+                            "$ref": "#/definitions/model.ConsignmentItemStatus"
                         }
                     ]
                 }
@@ -1056,23 +1040,24 @@ const docTemplate = `{
         "model.Consignment": {
             "type": "object",
             "properties": {
-                "card_id": {
-                    "type": "integer"
-                },
                 "created_at": {
                     "type": "string"
                 },
                 "id": {
                     "type": "integer"
                 },
+                "items": {
+                    "description": "Used for API responses",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/model.ConsignmentItem"
+                    }
+                },
                 "player_id": {
                     "type": "integer"
                 },
-                "quantity": {
-                    "type": "integer"
-                },
                 "status": {
-                    "$ref": "#/definitions/model.ConsignmentStatus"
+                    "$ref": "#/definitions/model.ConsignmentRequestStatus"
                 },
                 "store_id": {
                     "type": "integer"
@@ -1082,19 +1067,58 @@ const docTemplate = `{
                 }
             }
         },
-        "model.ConsignmentStatus": {
+        "model.ConsignmentItem": {
+            "type": "object",
+            "properties": {
+                "card_id": {
+                    "type": "integer"
+                },
+                "consignment_id": {
+                    "type": "integer"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "rejection_reason": {
+                    "type": "string"
+                },
+                "status": {
+                    "$ref": "#/definitions/model.ConsignmentItemStatus"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "model.ConsignmentItemStatus": {
             "type": "string",
             "enum": [
                 "PENDING",
-                "LISTED",
+                "APPROVED",
+                "REJECTED",
                 "SOLD",
                 "CLEARED"
             ],
             "x-enum-varnames": [
-                "StatusPending",
-                "StatusListed",
-                "StatusSold",
-                "StatusCleared"
+                "ItemStatusPending",
+                "ItemStatusApproved",
+                "ItemStatusRejected",
+                "ItemStatusSold",
+                "ItemStatusCleared"
+            ]
+        },
+        "model.ConsignmentRequestStatus": {
+            "type": "string",
+            "enum": [
+                "PROCESSING",
+                "COMPLETED"
+            ],
+            "x-enum-varnames": [
+                "ConsignmentRequestStatusProcessing",
+                "ConsignmentRequestStatusCompleted"
             ]
         },
         "model.PaymentMethod": {
@@ -1151,7 +1175,7 @@ const docTemplate = `{
                 "commission_rate": {
                     "type": "number"
                 },
-                "consignment_id": {
+                "consignment_item_id": {
                     "type": "integer"
                 },
                 "created_at": {

@@ -17,13 +17,13 @@ func NewTransactionHandler(transactionService *service.TransactionService) *Tran
 }
 
 type CreateTransactionRequest struct {
-	ConsignmentID int64                 `json:"consignment_id" binding:"required"`
-	Price         float64               `json:"price" binding:"required,gt=0"`
-	PaymentMethod model.PaymentMethod `json:"payment_method" binding:"required,oneof=CASH CREDIT"`
+	ConsignmentItemID int64                 `json:"consignment_item_id" binding:"required"`
+	Price             float64               `json:"price" binding:"required,gt=0"`
+	PaymentMethod     model.PaymentMethod `json:"payment_method" binding:"required,oneof=CASH CREDIT"`
 }
 
 // @Summary Create a new transaction
-// @Description Store creates a transaction for a sold consignment.
+// @Description Store creates a transaction for a sold consignment item.
 // @Tags transactions
 // @Accept  json
 // @Produce  json
@@ -31,7 +31,9 @@ type CreateTransactionRequest struct {
 // @Param   transaction body CreateTransactionRequest true "Transaction Information"
 // @Success 201 {object} model.Transaction
 // @Failure 400 {object} map[string]string "{"error": "bad request"}"
-// @Failure 409 {object} map[string]string "{"error": "conflict (e.g., consignment not found, already sold, or forbidden)"}"
+// @Failure 403 {object} map[string]string "{"error": "permission denied"}"
+// @Failure 404 {object} map[string]string "{"error": "item not found"}"
+// @Failure 409 {object} map[string]string "{"error": "conflict (e.g., item not approved or already sold)"}"
 // @Failure 500 {object} map[string]string "{"error": "failed to create transaction"}"
 // @Router /api/transactions [post]
 func (h *TransactionHandler) CreateTransaction(c *gin.Context) {
@@ -43,15 +45,18 @@ func (h *TransactionHandler) CreateTransaction(c *gin.Context) {
 
 	claims := c.MustGet(AuthorizationPayloadKey).(*service.CustomClaims)
 
-	tx, err := h.transactionService.CreateTransaction(claims.UserID, req.ConsignmentID, req.Price, req.PaymentMethod)
+	tx, err := h.transactionService.CreateTransaction(claims.UserID, req.ConsignmentItemID, req.Price, req.PaymentMethod)
 	if err != nil {
-		// Handle specific, known errors
-		if err == service.ErrConsignmentNotFound || err == service.ErrConsignmentAlreadySold || err == service.ErrForbidden {
+		switch err {
+		case service.ErrConsignmentItemNotFound:
+			c.JSON(http.StatusNotFound, gin.H{"error": "consignment item not found"})
+		case service.ErrForbidden:
+			c.JSON(http.StatusForbidden, gin.H{"error": "permission denied"})
+		case service.ErrItemNotApproved, service.ErrItemAlreadySold:
 			c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
-			return
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create transaction"})
 		}
-		// Handle generic errors
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create transaction"})
 		return
 	}
 

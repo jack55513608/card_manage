@@ -16,7 +16,7 @@ func NewTransactionRepository(db *sql.DB) *TransactionRepository {
 
 // CreateTransaction inserts a new transaction into the database.
 func (r *TransactionRepository) CreateTransaction(tx *model.Transaction) (int64, error) {
-	query := `INSERT INTO transactions (consignment_id, store_id, price, payment_method, commission_rate, created_at)
+	query := `INSERT INTO transactions (consignment_item_id, store_id, price, payment_method, commission_rate, created_at)
 			  VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`
 
 	tx.CreatedAt = time.Now()
@@ -24,7 +24,7 @@ func (r *TransactionRepository) CreateTransaction(tx *model.Transaction) (int64,
 	var transactionID int64
 	err := r.db.QueryRow(
 		query,
-		tx.ConsignmentID,
+		tx.ConsignmentItemID,
 		tx.StoreID,
 		tx.Price,
 		tx.PaymentMethod,
@@ -40,7 +40,7 @@ func (r *TransactionRepository) CreateTransaction(tx *model.Transaction) (int64,
 
 // CreateTransactionInTx inserts a new transaction into the database within a specific transaction.
 func (r *TransactionRepository) CreateTransactionInTx(tx *sql.Tx, transaction *model.Transaction) (int64, error) {
-	query := `INSERT INTO transactions (consignment_id, store_id, price, payment_method, commission_rate, created_at)
+	query := `INSERT INTO transactions (consignment_item_id, store_id, price, payment_method, commission_rate, created_at)
 			  VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`
 
 	transaction.CreatedAt = time.Now()
@@ -48,7 +48,7 @@ func (r *TransactionRepository) CreateTransactionInTx(tx *sql.Tx, transaction *m
 	var transactionID int64
 	err := tx.QueryRow(
 		query,
-		transaction.ConsignmentID,
+		transaction.ConsignmentItemID,
 		transaction.StoreID,
 		transaction.Price,
 		transaction.PaymentMethod,

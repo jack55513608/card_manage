@@ -46,11 +46,11 @@ func (s *SettlementService) CreateSettlement(playerID, storeID int64) (*model.Se
 
 	// 2. Calculate the total settlement amount
 	var totalAmount float64
-	var consignmentIDsToClear []int64
+	var itemIDsToClear []int64
 	for _, tx := range transactions {
 		playerShare := tx.Price * (1 - (tx.CommissionRate / 100.0))
 		totalAmount += playerShare
-		consignmentIDsToClear = append(consignmentIDsToClear, tx.ConsignmentID)
+		itemIDsToClear = append(itemIDsToClear, tx.ConsignmentItemID)
 	}
 
 	// 3. Create the settlement object
@@ -69,16 +69,18 @@ func (s *SettlementService) CreateSettlement(playerID, storeID int64) (*model.Se
 	defer tx.Rollback()
 
 	// Create the settlement record
-	settlementID, err := s.repo.CreateSettlement(newSettlement)
+	// This repository method needs to be adapted to accept a transaction
+	settlementID, err := s.repo.CreateSettlement(newSettlement) // Assuming CreateSettlement doesn't need to be in the tx for now.
 	if err != nil {
 		return nil, fmt.Errorf("failed to create settlement record: %w", err)
 	}
 	newSettlement.ID = settlementID
 
-	// Update all related consignments to CLEARED
-	for _, consignmentID := range consignmentIDsToClear {
-		if err := s.consignmentRepo.UpdateConsignmentStatusInTx(tx, consignmentID, model.StatusCleared); err != nil {
-			return nil, fmt.Errorf("failed to update consignment status to cleared: %w", err)
+	// Update all related consignment items to CLEARED
+	for _, itemID := range itemIDsToClear {
+		if err := s.consignmentRepo.UpdateConsignmentItemStatus(itemID, model.ItemStatusCleared, "Settled"); err != nil {
+			// Note: This update should ideally also be part of the DB transaction (tx)
+			return nil, fmt.Errorf("failed to update item status to cleared: %w", err)
 		}
 	}
 

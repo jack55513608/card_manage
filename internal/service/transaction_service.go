@@ -9,7 +9,8 @@ import (
 )
 
 var (
-	ErrConsignmentAlreadySold = errors.New("consignment has already been sold")
+	ErrItemNotApproved = errors.New("consignment item is not approved for sale")
+	ErrItemAlreadySold = errors.New("consignment item has already been sold")
 )
 
 type TransactionService struct {
@@ -33,20 +34,26 @@ func NewTransactionService(
 	}
 }
 
-// CreateTransaction creates a new transaction and updates the consignment status within a DB transaction.
-func (s *TransactionService) CreateTransaction(storeUserID, consignmentID int64, price float64, paymentMethod model.PaymentMethod) (*model.Transaction, error) {
-	// 1. Get consignment and verify ownership and status
-	consignment, err := s.consignmentRepo.GetConsignmentByID(consignmentID)
+// CreateTransaction creates a new transaction for a specific consignment item.
+func (s *TransactionService) CreateTransaction(storeUserID, itemID int64, price float64, paymentMethod model.PaymentMethod) (*model.Transaction, error) {
+	// 1. Get the consignment item and its parent consignment
+	item, err := s.consignmentRepo.GetConsignmentItemByID(itemID)
 	if err != nil {
-		return nil, fmt.Errorf("error getting consignment: %w", err)
+		return nil, fmt.Errorf("error getting consignment item: %w", err)
+	}
+	if item == nil {
+		return nil, ErrConsignmentItemNotFound
+	}
+
+	consignment, err := s.consignmentRepo.GetConsignmentByID(item.ConsignmentID)
+	if err != nil {
+		return nil, fmt.Errorf("error getting parent consignment: %w", err)
 	}
 	if consignment == nil {
 		return nil, ErrConsignmentNotFound
 	}
-	if consignment.Status == model.StatusSold || consignment.Status == model.StatusCleared {
-		return nil, ErrConsignmentAlreadySold
-	}
 
+	// 2. Verify store ownership
 	store, err := s.storeRepo.GetStoreByUserID(storeUserID)
 	if err != nil {
 		return nil, fmt.Errorf("error getting store: %w", err)
@@ -55,7 +62,12 @@ func (s *TransactionService) CreateTransaction(storeUserID, consignmentID int64,
 		return nil, ErrForbidden
 	}
 
-	// 2. Determine commission rate
+	// 3. Check if the item can be sold
+	if item.Status != model.ItemStatusApproved {
+		return nil, ErrItemNotApproved
+	}
+
+	// 4. Determine commission rate
 	var commissionRate float64
 	if paymentMethod == model.PaymentMethodCash {
 		commissionRate = store.CommissionCash
@@ -63,34 +75,32 @@ func (s *TransactionService) CreateTransaction(storeUserID, consignmentID int64,
 		commissionRate = store.CommissionCredit
 	}
 
-	// 3. Create transaction object
+	// 5. Create transaction object
 	newTxModel := &model.Transaction{
-		ConsignmentID:  consignmentID,
-		StoreID:        store.ID,
-		Price:          price,
-		PaymentMethod:  paymentMethod,
-		CommissionRate: commissionRate,
+		ConsignmentItemID: itemID,
+		StoreID:           store.ID,
+		Price:             price,
+		PaymentMethod:     paymentMethod,
+		CommissionRate:    commissionRate,
 	}
 
-	// 4. Execute in a DB transaction
+	// 6. Execute in a DB transaction
 	tx, err := s.db.Begin()
 	if err != nil {
 		return nil, fmt.Errorf("failed to begin db transaction: %w", err)
 	}
-	defer tx.Rollback() // Rollback is a no-op if tx has been committed.
+	defer tx.Rollback()
 
 	// Create the transaction record
-	// Note: We need to adapt repository methods to accept a transaction (tx)
-	// For now, we will create new methods for this purpose.
 	txID, err := s.repo.CreateTransactionInTx(tx, newTxModel)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create transaction record: %w", err)
 	}
 	newTxModel.ID = txID
 
-	// Update the consignment status to SOLD
-	if err := s.consignmentRepo.UpdateConsignmentStatusInTx(tx, consignmentID, model.StatusSold); err != nil {
-		return nil, fmt.Errorf("failed to update consignment status: %w", err)
+	// Update the item status to SOLD
+	if err := s.consignmentRepo.UpdateConsignmentItemStatus(itemID, model.ItemStatusSold, ""); err != nil {
+		return nil, fmt.Errorf("failed to update item status: %w", err)
 	}
 
 	// Commit the transaction

@@ -18,13 +18,12 @@ func NewConsignmentHandler(consignmentService *service.ConsignmentService) *Cons
 }
 
 type CreateConsignmentRequest struct {
-	StoreID  int64 `json:"store_id" binding:"required"`
-	CardID   int64 `json:"card_id" binding:"required"`
-	Quantity int   `json:"quantity" binding:"required,gt=0"`
+	StoreID int64   `json:"store_id" binding:"required"`
+	CardIDs []int64 `json:"card_ids" binding:"required,gt=0"`
 }
 
 // @Summary Create a new consignment request
-// @Description Player creates a consignment request for a card to a store.
+// @Description Player creates a consignment request for one or more cards to a store.
 // @Tags consignments
 // @Accept  json
 // @Produce  json
@@ -43,12 +42,8 @@ func (h *ConsignmentHandler) CreateConsignment(c *gin.Context) {
 
 	claims := c.MustGet(AuthorizationPayloadKey).(*service.CustomClaims)
 
-	consignment, err := h.consignmentService.CreateConsignment(claims.UserID, req.StoreID, req.CardID, req.Quantity)
+	consignment, err := h.consignmentService.CreateConsignment(claims.UserID, req.StoreID, req.CardIDs)
 	if err != nil {
-		if err == service.ErrInvalidCardForStore {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "the provided card does not belong to the specified store"})
-			return
-		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create consignment request"})
 		return
 	}
@@ -56,52 +51,33 @@ func (h *ConsignmentHandler) CreateConsignment(c *gin.Context) {
 	c.JSON(http.StatusCreated, consignment)
 }
 
-// @Summary List consignments
-// @Description Lists consignments for the current user (player or store).
-// @Tags consignments
-// @Produce  json
-// @Security BearerAuth
-// @Success 200 {array} model.Consignment
-// @Failure 500 {object} map[string]string "{"error": "failed to list consignments"}"
-// @Router /api/consignments [get]
-func (h *ConsignmentHandler) ListConsignments(c *gin.Context) {
-	claims := c.MustGet(AuthorizationPayloadKey).(*service.CustomClaims)
-
-	consignments, err := h.consignmentService.ListConsignmentsForUser(claims.UserID, claims.Role)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list consignments"})
-		return
-	}
-
-	c.JSON(http.StatusOK, consignments)
+type UpdateConsignmentItemStatusRequest struct {
+	Status model.ConsignmentItemStatus `json:"status" binding:"required,oneof=APPROVED REJECTED"`
+	Reason string                      `json:"reason"`
 }
 
-type UpdateConsignmentStatusRequest struct {
-	Status model.ConsignmentStatus `json:"status" binding:"required,oneof=LISTED SOLD CLEARED"`
-}
-
-// @Summary Update a consignment's status
-// @Description Store updates the status of a consignment (e.g., to LISTED, SOLD).
+// @Summary Update a consignment item's status
+// @Description Store approves or rejects a consignment item.
 // @Tags consignments
 // @Accept  json
 // @Produce  json
 // @Security BearerAuth
-// @Param   id path int true "Consignment ID"
-// @Param   status body UpdateConsignmentStatusRequest true "New Status"
-// @Success 200 {object} model.Consignment
-// @Failure 400 {object} map[string]string "{"error": "invalid consignment ID or bad request"}"
+// @Param   itemId path int true "Consignment Item ID"
+// @Param   status body UpdateConsignmentItemStatusRequest true "New Status"
+// @Success 200 {object} model.ConsignmentItem
+// @Failure 400 {object} map[string]string "{"error": "invalid item ID or bad request"}"
 // @Failure 403 {object} map[string]string "{"error": "permission denied"}"
-// @Failure 404 {object} map[string]string "{"error": "consignment not found"}"
-// @Failure 500 {object} map[string]string "{"error": "failed to update consignment status"}"
-// @Router /api/consignments/{id} [put]
-func (h *ConsignmentHandler) UpdateConsignmentStatus(c *gin.Context) {
-	consignmentID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+// @Failure 404 {object} map[string]string "{"error": "item not found"}"
+// @Failure 500 {object} map[string]string "{"error": "failed to update item status"}"
+// @Router /api/consignments/items/{itemId} [put]
+func (h *ConsignmentHandler) UpdateConsignmentItemStatus(c *gin.Context) {
+	itemID, err := strconv.ParseInt(c.Param("itemId"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid consignment ID"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid item ID"})
 		return
 	}
 
-	var req UpdateConsignmentStatusRequest
+	var req UpdateConsignmentItemStatusRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -109,19 +85,20 @@ func (h *ConsignmentHandler) UpdateConsignmentStatus(c *gin.Context) {
 
 	claims := c.MustGet(AuthorizationPayloadKey).(*service.CustomClaims)
 
-	consignment, err := h.consignmentService.UpdateConsignmentStatus(claims.UserID, consignmentID, req.Status)
+	item, err := h.consignmentService.UpdateConsignmentItemStatus(claims.UserID, itemID, req.Status, req.Reason)
 	if err != nil {
-		if err == service.ErrConsignmentNotFound {
-			c.JSON(http.StatusNotFound, gin.H{"error": "consignment not found"})
-			return
+		switch err {
+		case service.ErrConsignmentItemNotFound:
+			c.JSON(http.StatusNotFound, gin.H{"error": "item not found"})
+		case service.ErrForbidden:
+			c.JSON(http.StatusForbidden, gin.H{"error": "permission denied"})
+		case service.ErrCannotUpdateStatus:
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update item status"})
 		}
-		if err == service.ErrForbidden {
-			c.JSON(http.StatusForbidden, gin.H{"error": "you do not have permission to update this consignment"})
-			return
-		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update consignment status"})
 		return
 	}
 
-	c.JSON(http.StatusOK, consignment)
+	c.JSON(http.StatusOK, item)
 }

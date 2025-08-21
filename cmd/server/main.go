@@ -139,9 +139,13 @@ func main() {
 		// Consignment routes
 		consignmentRoutes := apiRoutes.Group("/consignments")
 		{
+			// Player creates a consignment request
 			consignmentRoutes.POST("", api.RoleMiddleware("PLAYER"), consignmentHandler.CreateConsignment)
-			consignmentRoutes.GET("", consignmentHandler.ListConsignments)
-			consignmentRoutes.PUT("/:id", api.RoleMiddleware("STORE"), consignmentHandler.UpdateConsignmentStatus)
+			
+			// Store updates the status of an item in a consignment
+			consignmentRoutes.PUT("/items/:itemId", api.RoleMiddleware("STORE"), consignmentHandler.UpdateConsignmentItemStatus)
+
+			// Routes for listing consignments can be added here later if needed
 		}
 
 		// Transaction routes
