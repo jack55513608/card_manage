@@ -1,0 +1,257 @@
+好的，我幫你整理成完整的 Markdown 原始碼，方便你直接複製到本地端並存成 consignment_card_platform_full.md：
+
+# 卡片遊戲寄售平台 PRD + 系統架構 + ERD + SQL
+
+## 目錄
+- [1. 文件資訊](#1-文件資訊)
+- [2. 專案簡介](#2-專案簡介)
+- [3. 使用者角色與權限](#3-使用者角色與權限)
+- [4. 功能需求](#4-功能需求)
+- [5. 金流需求](#5-金流需求)
+- [6. 非功能需求](#6-非功能需求)
+- [7. 系統架構](#7-系統架構)
+- [8. 資料庫設計 (ERD)](#8-資料庫設計-erd)
+- [9. PostgreSQL 建表 SQL (DDL)](#9-postgresql-建表-sql-ddl)
+- [10. 未來擴充計畫](#10-未來擴充計畫)
+- [11. 附錄](#11-附錄)
+
+---
+
+## 1. 文件資訊
+- **文件版本**：v1.0  
+- **最後更新日期**：2025-08-18  
+- **文件狀態**：草稿  
+
+---
+
+## 2. 專案簡介
+本專案旨在建立一個以「店家為基礎」的卡片遊戲寄售平台。  
+平台允許玩家將卡片寄放於店家，由店家代為售出，並依照抽成比例進行收益分配。  
+
+系統主要提供：  
+1. 玩家寄售端功能  
+2. 店家管理與售出端功能  
+3. 平台管理員後台  
+4. 金流與抽成模組（初期僅支援現金與店家儲值金）  
+
+---
+
+## 3. 使用者角色與權限
+
+### 3.1 玩家
+- 登入並提交寄售申請（輸入卡片資訊）  
+- 僅能寄售已存在於店家資料庫的卡片  
+- 無需上傳圖片，卡片資訊皆標準化  
+- 可申請清算（不自動結算）  
+
+### 3.2 店家
+- 管理卡片資料庫（新增、維護卡片標準化資訊）  
+- 決定卡片售價  
+- 處理銷售、抽成、現金/儲值金對應的收付  
+- 設定抽成比例（現金與儲值金可有不同比例）  
+- 處理物流（寄放與出貨）  
+
+### 3.3 平台管理員
+- 系統維護與後台管理  
+- 店家註冊與審核  
+- 平台級監控（玩家數據、交易量、抽成紀錄）  
+
+---
+
+## 4. 功能需求
+
+### 4.1 玩家端功能
+1. **寄卡申請**  
+   - 玩家可選擇卡片（須存在於店家資料庫）  
+   - 輸入寄放數量  
+   - 提交後由店家確認  
+
+2. **查詢銷售紀錄**  
+   - 查看自己寄售卡片的銷售情況  
+   - 查看收益金額與可清算餘額  
+
+3. **清算申請**  
+   - 玩家可自行申請清算收益  
+   - 支援現金或店家儲值金（抽成比例不同）  
+
+### 4.2 店家端功能
+1. **卡片資料庫管理**  
+   - 新增或修改卡片資訊（標準化資料）  
+
+2. **售價設定**  
+   - 玩家寄放的卡片由店家決定最終售價  
+
+3. **抽成比例管理**  
+   - 支援不同支付方式的抽成比例（例：現金 10%，儲值金 5%）  
+
+4. **物流管理**  
+   - 店家負責卡片的收放、出貨  
+
+5. **收益管理**  
+   - 可查詢每位玩家的寄售收益  
+   - 執行清算並紀錄  
+
+### 4.3 平台管理員功能
+1. **店家管理**  
+   - 店家註冊與審核流程  
+   - 店家資訊維護  
+
+2. **平台監控**  
+   - 交易總量、收益統計  
+   - 平台整體抽成報表  
+
+---
+
+## 5. 金流需求
+- 支援模式：現金、店家儲值金  
+- 抽成比例由店家設定，可依支付方式不同  
+- 清算需玩家申請，由店家人工處理  
+
+---
+
+## 6. 非功能需求
+- **部署環境**：GCP  
+- **後端語言**：Golang  
+- **資料庫**：Cloud SQL（MySQL/PostgreSQL）  
+- **安全性**：登入驗證（JWT / OAuth2）、角色分離  
+
+---
+
+## 7. 系統架構
+
+### 7.1 模組分層架構
+
+
+前端 (Web / Mobile)
+├─ 玩家介面：寄售申請、查詢卡片狀態、清算申請
+├─ 店家介面：卡片資料庫管理、售價設定、抽成設定
+└─ 管理員介面：帳號管理、交易紀錄查詢
+
+後端服務 (Golang API)
+├─ 使用者模組：登入/註冊、角色管理
+├─ 卡片管理模組：卡片資料庫、玩家寄售
+├─ 寄售/交易模組：寄售狀態流轉、抽成計算
+├─ 金流模組：現金交易、店家儲值金、清算
+└─ 管理員模組：帳號管理、交易紀錄
+
+資料庫層 (PostgreSQL)
+├─ 使用者表
+├─ 店家卡片資料表
+├─ 玩家寄售卡片表
+├─ 交易紀錄表
+└─ 清算紀錄表
+
+
+### 7.2 GCP 部署架構
+
+
+使用者 (玩家/店家/管理員)
+│
+HTTPS/TLS
+│
+Cloud Run (Golang API)
+│
+┌─────────────┴─────────────┐
+Cloud SQL (PostgreSQL) Cloud Storage (未來圖片/備份)
+│
+Cloud Logging & Monitoring (選用)
+
+
+---
+
+## 8. 資料庫設計 (ERD)
+- **Users**：id, email, password_hash, role  
+- **Stores**：id, user_id, name, commission_cash, commission_credit  
+- **Cards**：id, store_id, name, series, rarity, card_number  
+- **Consignments**：id, player_id, store_id, card_id, quantity, status  
+- **Transactions**：id, consignment_id, store_id, price, payment_method, commission_rate  
+- **Settlements**：id, player_id, store_id, amount, status  
+
+關係：
+- Users (1) ── (1) Stores  
+- Stores (1) ── (M) Cards  
+- Users (1) ── (M) Consignments ── (M) Transactions  
+- Users (1) ── (M) Settlements  
+
+---
+
+## 9. PostgreSQL 建表 SQL (DDL)
+```sql
+CREATE TABLE users (
+    id SERIAL PRIMARY KEY,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,
+    role VARCHAR(20) CHECK (role IN ('PLAYER','STORE','ADMIN')) NOT NULL,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE stores (
+    id SERIAL PRIMARY KEY,
+    user_id INT UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name VARCHAR(255) NOT NULL,
+    commission_cash NUMERIC(5,2) NOT NULL DEFAULT 0.0,
+    commission_credit NUMERIC(5,2) NOT NULL DEFAULT 0.0,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE cards (
+    id SERIAL PRIMARY KEY,
+    store_id INT NOT NULL REFERENCES stores(id) ON DELETE CASCADE,
+    name VARCHAR(255) NOT NULL,
+    series VARCHAR(255),
+    rarity VARCHAR(50),
+    card_number VARCHAR(50),
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE consignments (
+    id SERIAL PRIMARY KEY,
+    player_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    store_id INT NOT NULL REFERENCES stores(id) ON DELETE CASCADE,
+    card_id INT NOT NULL REFERENCES cards(id) ON DELETE CASCADE,
+    quantity INT NOT NULL CHECK (quantity > 0),
+    status VARCHAR(20) CHECK (status IN ('PENDING','LISTED','SOLD','CLEARED')) NOT NULL DEFAULT 'PENDING',
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE transactions (
+    id SERIAL PRIMARY KEY,
+    consignment_id INT NOT NULL REFERENCES consignments(id) ON DELETE CASCADE,
+    store_id INT NOT NULL REFERENCES stores(id) ON DELETE CASCADE,
+    price NUMERIC(10,2) NOT NULL,
+    payment_method VARCHAR(20) CHECK (payment_method IN ('CASH','CREDIT')) NOT NULL,
+    commission_rate NUMERIC(5,2) NOT NULL,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE settlements (
+    id SERIAL PRIMARY KEY,
+    player_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    store_id INT NOT NULL REFERENCES stores(id) ON DELETE CASCADE,
+    amount NUMERIC(12,2) NOT NULL,
+    status VARCHAR(20) CHECK (status IN ('REQUESTED','COMPLETED')) NOT NULL DEFAULT 'REQUESTED',
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+10. 未來擴充計畫
+
+支援線上支付（信用卡、第三方支付）
+
+支援物流配送
+
+自動清算系統
+
+更豐富的數據統計與報表
+
+11. 附錄
+
+縮寫：
+
+PRD：Product Requirement Document
+
+GCP：Google Cloud Platform

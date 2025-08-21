@@ -1,0 +1,779 @@
+definitions:
+  api.CreateCardRequest:
+    properties:
+      card_number:
+        type: string
+      name:
+        type: string
+      rarity:
+        type: string
+      series:
+        type: string
+    required:
+    - name
+    type: object
+  api.CreateConsignmentRequest:
+    properties:
+      card_id:
+        type: integer
+      quantity:
+        type: integer
+      store_id:
+        type: integer
+    required:
+    - card_id
+    - quantity
+    - store_id
+    type: object
+  api.CreateSettlementRequest:
+    properties:
+      store_id:
+        type: integer
+    required:
+    - store_id
+    type: object
+  api.CreateTransactionRequest:
+    properties:
+      consignment_id:
+        type: integer
+      payment_method:
+        allOf:
+        - $ref: '#/definitions/model.PaymentMethod'
+        enum:
+        - CASH
+        - CREDIT
+      price:
+        type: number
+    required:
+    - consignment_id
+    - payment_method
+    - price
+    type: object
+  api.LoginRequest:
+    properties:
+      email:
+        type: string
+      password:
+        type: string
+    required:
+    - email
+    - password
+    type: object
+  api.RegisterRequest:
+    properties:
+      email:
+        type: string
+      password:
+        minLength: 8
+        type: string
+      role:
+        description: ADMIN role cannot be self-assigned
+        enum:
+        - PLAYER
+        - STORE
+        type: string
+    required:
+    - email
+    - password
+    - role
+    type: object
+  api.UpdateCardRequest:
+    properties:
+      card_number:
+        type: string
+      name:
+        type: string
+      rarity:
+        type: string
+      series:
+        type: string
+    required:
+    - name
+    type: object
+  api.UpdateConsignmentStatusRequest:
+    properties:
+      status:
+        allOf:
+        - $ref: '#/definitions/model.ConsignmentStatus'
+        enum:
+        - LISTED
+        - SOLD
+        - CLEARED
+    required:
+    - status
+    type: object
+  model.Card:
+    properties:
+      card_number:
+        type: string
+      created_at:
+        type: string
+      id:
+        type: integer
+      name:
+        type: string
+      rarity:
+        type: string
+      series:
+        type: string
+      store_id:
+        type: integer
+      updated_at:
+        type: string
+    type: object
+  model.Consignment:
+    properties:
+      card_id:
+        type: integer
+      created_at:
+        type: string
+      id:
+        type: integer
+      player_id:
+        type: integer
+      quantity:
+        type: integer
+      status:
+        $ref: '#/definitions/model.ConsignmentStatus'
+      store_id:
+        type: integer
+      updated_at:
+        type: string
+    type: object
+  model.ConsignmentStatus:
+    enum:
+    - PENDING
+    - LISTED
+    - SOLD
+    - CLEARED
+    type: string
+    x-enum-varnames:
+    - StatusPending
+    - StatusListed
+    - StatusSold
+    - StatusCleared
+  model.PaymentMethod:
+    enum:
+    - CASH
+    - CREDIT
+    type: string
+    x-enum-varnames:
+    - PaymentMethodCash
+    - PaymentMethodCredit
+  model.Settlement:
+    properties:
+      amount:
+        type: number
+      created_at:
+        type: string
+      id:
+        type: integer
+      player_id:
+        type: integer
+      status:
+        $ref: '#/definitions/model.SettlementStatus'
+      store_id:
+        type: integer
+      updated_at:
+        type: string
+    type: object
+  model.SettlementStatus:
+    enum:
+    - REQUESTED
+    - COMPLETED
+    type: string
+    x-enum-varnames:
+    - StatusRequested
+    - StatusCompleted
+  model.Transaction:
+    properties:
+      commission_rate:
+        type: number
+      consignment_id:
+        type: integer
+      created_at:
+        type: string
+      id:
+        type: integer
+      payment_method:
+        $ref: '#/definitions/model.PaymentMethod'
+      price:
+        type: number
+      store_id:
+        type: integer
+    type: object
+  model.User:
+    properties:
+      created_at:
+        type: string
+      email:
+        type: string
+      id:
+        type: integer
+      role:
+        type: string
+      updated_at:
+        type: string
+    type: object
+host: localhost:8080
+info:
+  contact:
+    email: support@swagger.io
+    name: API Support
+    url: http://www.swagger.io/support
+  description: This is a sample server for a card management system.
+  license:
+    name: Apache 2.0
+    url: http://www.apache.org/licenses/LICENSE-2.0.html
+  termsOfService: http://swagger.io/terms/
+  title: Card Management API
+  version: "1.0"
+paths:
+  /api/cards:
+    get:
+      description: Retrieves a list of all cards associated with the current user's
+        store.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/model.Card'
+            type: array
+        "500":
+          description: '{"error": "failed to list cards"}'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List all cards for the current user
+      tags:
+      - cards
+    post:
+      consumes:
+      - application/json
+      description: Adds a new card to the store associated with the user.
+      parameters:
+      - description: Card Information
+        in: body
+        name: card
+        required: true
+        schema:
+          $ref: '#/definitions/api.CreateCardRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/model.Card'
+        "400":
+          description: '{"error": "bad_request_error"}'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: '{"error": "user does not have a store"}'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: '{"error": "failed to create card"}'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Create a new card
+      tags:
+      - cards
+  /api/cards/{id}:
+    delete:
+      description: Deletes a specific card by its ID.
+      parameters:
+      - description: Card ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: '{"message": "card deleted successfully"}'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: '{"error": "invalid card ID"}'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: '{"error": "you do not have permission to delete this card"}'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: '{"error": "card not found"}'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: '{"error": "failed to delete card"}'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Delete a card
+      tags:
+      - cards
+    get:
+      description: Retrieves a specific card by its ID.
+      parameters:
+      - description: Card ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.Card'
+        "400":
+          description: '{"error": "invalid card ID"}'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: '{"error": "you do not have permission to view this card"}'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: '{"error": "card not found"}'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: '{"error": "failed to retrieve card"}'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get a card by ID
+      tags:
+      - cards
+    put:
+      consumes:
+      - application/json
+      description: Updates the details of a specific card.
+      parameters:
+      - description: Card ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Card Update Information
+        in: body
+        name: card
+        required: true
+        schema:
+          $ref: '#/definitions/api.UpdateCardRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.Card'
+        "400":
+          description: '{"error": "invalid card ID"}'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: '{"error": "you do not have permission to update this card"}'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: '{"error": "card not found"}'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: '{"error": "failed to update card"}'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Update a card
+      tags:
+      - cards
+  /api/consignments:
+    get:
+      description: Lists consignments for the current user (player or store).
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/model.Consignment'
+            type: array
+        "500":
+          description: '{"error": "failed to list consignments"}'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List consignments
+      tags:
+      - consignments
+    post:
+      consumes:
+      - application/json
+      description: Player creates a consignment request for a card to a store.
+      parameters:
+      - description: Consignment Request Information
+        in: body
+        name: consignment
+        required: true
+        schema:
+          $ref: '#/definitions/api.CreateConsignmentRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/model.Consignment'
+        "400":
+          description: '{"error": "bad request"}'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: '{"error": "failed to create consignment request"}'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Create a new consignment request
+      tags:
+      - consignments
+  /api/consignments/{id}:
+    put:
+      consumes:
+      - application/json
+      description: Store updates the status of a consignment (e.g., to LISTED, SOLD).
+      parameters:
+      - description: Consignment ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: New Status
+        in: body
+        name: status
+        required: true
+        schema:
+          $ref: '#/definitions/api.UpdateConsignmentStatusRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.Consignment'
+        "400":
+          description: '{"error": "invalid consignment ID or bad request"}'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: '{"error": "permission denied"}'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: '{"error": "consignment not found"}'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: '{"error": "failed to update consignment status"}'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Update a consignment's status
+      tags:
+      - consignments
+  /api/settlements:
+    post:
+      consumes:
+      - application/json
+      description: Player creates a settlement request to clear their earnings from
+        a store.
+      parameters:
+      - description: Settlement Request Information
+        in: body
+        name: settlement
+        required: true
+        schema:
+          $ref: '#/definitions/api.CreateSettlementRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/model.Settlement'
+        "400":
+          description: '{"error": "bad request"}'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "409":
+          description: '{"error": "conflict (e.g., no unsettled transactions)"}'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: '{"error": "failed to create settlement request"}'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Create a new settlement request
+      tags:
+      - settlements
+  /api/transactions:
+    post:
+      consumes:
+      - application/json
+      description: Store creates a transaction for a sold consignment.
+      parameters:
+      - description: Transaction Information
+        in: body
+        name: transaction
+        required: true
+        schema:
+          $ref: '#/definitions/api.CreateTransactionRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/model.Transaction'
+        "400":
+          description: '{"error": "bad request"}'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "409":
+          description: '{"error": "conflict (e.g., consignment not found, already
+            sold, or forbidden)"}'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: '{"error": "failed to create transaction"}'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Create a new transaction
+      tags:
+      - transactions
+  /login:
+    post:
+      consumes:
+      - application/json
+      description: Authenticates a user and returns a JWT token.
+      parameters:
+      - description: Login Credentials
+        in: body
+        name: credentials
+        required: true
+        schema:
+          $ref: '#/definitions/api.LoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: '{"token": "your_jwt_token"}'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: '{"error": "bad_request_error"}'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: '{"error": "invalid email or password"}'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: '{"error": "internal_server_error"}'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: User Login
+      tags:
+      - users
+  /register:
+    post:
+      consumes:
+      - application/json
+      description: Creates a new user account.
+      parameters:
+      - description: User Registration Info
+        in: body
+        name: user
+        required: true
+        schema:
+          $ref: '#/definitions/api.RegisterRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: '{"message": "user created successfully", "user_id": 1}'
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: '{"error": "bad_request_error"}'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "409":
+          description: '{"error": "email already exists"}'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: '{"error": "failed to register user"}'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: User Registration
+      tags:
+      - users
+  /users/{id}:
+    get:
+      consumes:
+      - application/json
+      description: Get user details by ID. Requires authentication and ADMIN role.
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.User'
+        "400":
+          description: '{"error": "invalid user ID"}'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: '{"error": "unauthorized"}'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: '{"error": "forbidden"}'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: '{"error": "user not found"}'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: '{"error": "database error"}'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get user by ID
+      tags:
+      - users
+securityDefinitions:
+  BearerAuth:
+    description: Type "Bearer" followed by a space and JWT token.
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

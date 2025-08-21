@@ -1,0 +1,40 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:13-alpine
+    container_name: card_manage_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: root
+      POSTGRES_PASSWORD: secret
+      POSTGRES_DB: card_manage
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U root -d card_manage"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build: .
+    container_name: card_manage_app
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      - DB_DRIVER=postgres
+      - DB_SOURCE=postgresql://root:secret@postgres:5432/card_manage?sslmode=disable
+      - SERVER_ADDRESS=0.0.0.0:8080
+      - JWT_SECRET=your_super_secret_key_for_dev
+      - JWT_EXPIRES_IN=24h
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+    driver: local
