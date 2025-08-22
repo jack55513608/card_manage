@@ -69,40 +69,87 @@ sequenceDiagram
     end
 ```
 
-## 3. Create Consignment Flow (Protected Route)
+## 3. Create Consignment Request Flow
 
-This diagram shows a more complex flow for a protected endpoint. It includes authentication and role-based authorization middleware.
+This diagram shows a player creating a new consignment request with multiple items.
 
 ```mermaid
 sequenceDiagram
-    participant Client
+    participant Client as Player
     participant GinRouter as Gin Router
-    participant AuthMiddleware as Auth Middleware
-    participant RoleMiddleware as Role Middleware
-    participant ConsignmentHandler as Consignment Handler
-    participant ConsignmentService as Consignment Service
-    participant ConsignmentRepo as Consignment Repository
+    participant AuthMiddleware
+    participant RoleMiddleware
+    participant ConsignmentHandler
+    participant ConsignmentService
+    participant ConsignmentRepo
     participant Database
 
-    Client->>GinRouter: POST /api/consignments (Authorization: Bearer <token>)
+    Client->>GinRouter: POST /api/consignments (Authorization: Bearer <token>, body: {store_id, card_ids[]})
     GinRouter->>AuthMiddleware: Handle request
-    Note over AuthMiddleware: Validates JWT and extracts claims (userID, role)
-    AuthMiddleware->>AuthMiddleware: Set claims into Gin context
-    AuthMiddleware-->>GinRouter: c.Next()
+    AuthMiddleware-->>GinRouter: c.Next() (JWT valid, claims set)
 
     GinRouter->>RoleMiddleware: Handle request (requires 'PLAYER')
-    Note over RoleMiddleware: Checks role from context claims
-    RoleMiddleware-->>GinRouter: c.Next()
+    RoleMiddleware-->>GinRouter: c.Next() (Role OK)
 
     GinRouter->>ConsignmentHandler: CreateConsignment(c)
-    ConsignmentHandler->>ConsignmentHandler: Bind JSON to request struct
-    ConsignmentHandler->>ConsignmentService: CreateConsignment(...)
-    Note over ConsignmentService: Business logic (e.g., validate card, etc.)
-    ConsignmentService->>ConsignmentRepo: CreateConsignment(consignment)
+    ConsignmentHandler->>ConsignmentHandler: Bind JSON to CreateConsignmentRequest
+    ConsignmentHandler->>ConsignmentService: CreateConsignment(playerID, storeID, cardIDs)
+    
+    ConsignmentService->>ConsignmentRepo: CreateConsignment(consignment, items)
+    Note over ConsignmentRepo: Begins DB Transaction
     ConsignmentRepo->>Database: INSERT INTO consignments (...)
-    Database-->>ConsignmentRepo: (new consignment ID)
+    Database-->>ConsignmentRepo: (new consignment_id)
+    loop for each card_id
+        ConsignmentRepo->>Database: INSERT INTO consignment_items (consignment_id, card_id, ...)
+    end
+    Note over ConsignmentRepo: Commits DB Transaction
     ConsignmentRepo-->>ConsignmentService: (consignment object), nil
-    ConsignmentService-->>ConsignmentHandler: (consignment object), nil
+    
+    ConsignmentService-->>ConsignmentHandler: (full consignment with items), nil
     ConsignmentHandler-->>GinRouter: 201 Created response
     GinRouter-->>Client: HTTP 201
+```
+
+## 4. Update Consignment Item Status Flow
+
+This diagram shows a store owner approving or rejecting an individual consignment item.
+
+```mermaid
+sequenceDiagram
+    participant Client as Store Owner
+    participant GinRouter as Gin Router
+    participant AuthMiddleware
+    participant RoleMiddleware
+    participant ConsignmentHandler
+    participant ConsignmentService
+    participant ConsignmentRepo
+    participant Database
+
+    Client->>GinRouter: PUT /api/consignments/items/{itemId} (Authorization: Bearer <token>, body: {status, reason})
+    GinRouter->>AuthMiddleware: Handle request
+    AuthMiddleware-->>GinRouter: c.Next() (JWT valid, claims set)
+
+    GinRouter->>RoleMiddleware: Handle request (requires 'STORE')
+    RoleMiddleware-->>GinRouter: c.Next() (Role OK)
+
+    GinRouter->>ConsignmentHandler: UpdateConsignmentItemStatus(c)
+    ConsignmentHandler->>ConsignmentHandler: Bind JSON to UpdateStatusRequest
+    ConsignmentHandler->>ConsignmentService: UpdateConsignmentItemStatus(storeUserID, itemID, newStatus, reason)
+    
+    ConsignmentService->>ConsignmentRepo: GetConsignmentItemByID(itemID)
+    ConsignmentRepo-->>ConsignmentService: (item object)
+    
+    ConsignmentService->>ConsignmentRepo: GetConsignmentByID(item.ConsignmentID)
+    ConsignmentRepo-->>ConsignmentService: (consignment object with storeID)
+
+    Note over ConsignmentService: Verifies storeUserID owns the consignment.storeID
+
+    ConsignmentService->>ConsignmentRepo: UpdateConsignmentItemStatus(itemID, newStatus, reason)
+    ConsignmentRepo->>Database: UPDATE consignment_items SET status = ?, ... WHERE id = ?
+    Database-->>ConsignmentRepo: (success)
+    ConsignmentRepo-->>ConsignmentService: nil
+    
+    ConsignmentService-->>ConsignmentHandler: (updated item object), nil
+    ConsignmentHandler-->>GinRouter: 200 OK response
+    GinRouter-->>Client: HTTP 200
 ```
